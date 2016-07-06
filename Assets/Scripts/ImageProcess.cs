@@ -19,11 +19,12 @@ public class ImageProcess : MonoBehaviour {
 	private Sprite m_OriSprite;
 	private Texture2D m_Texture;
 
-
+	public bool DoRecovery;
 	public bool DoGray;
 	public bool DoFloydSteinberg;
-
-
+    public bool DoOrderedDithering;
+    [Range(0, 25)]
+    public float OrderedDitheringLevel = 8;
 	// Use this for initialization
 	void Start () {
 		m_Image = CacheGameObj.GetComponent<UnityEngine.UI.Image>();
@@ -37,27 +38,34 @@ public class ImageProcess : MonoBehaviour {
 	
 	// Update is called once per frame
 	void Update () {
-		CopyTexture(m_OriSprite.texture, m_Texture);
+
+		if (DoRecovery) 
+        {
+			CopyTexture(m_OriSprite.texture, m_Texture);
+//            DoRecovery = false;
+		}
+
 
 		if(DoGray)
 		{
 			ConvertGray(m_Texture);
+			DoGray = false;
 		}
 
 		if(DoFloydSteinberg)
 		{
 			FloydSteinberg(m_Texture);
+			DoFloydSteinberg = false;
 		}
 
+        if (DoOrderedDithering)
+        {
+            OrderedDithering(m_Texture, OrderedDitheringLevel);
+//            DoOrderedDithering = false;
+        }
 	}
 
 
-//	private void RecoverImage()
-//	{
-//		CopyTexture(m_OriSprite.texture, m_Texture);
-//
-//	}
-//		
 	private void CopyTexture(Texture2D orig, Texture2D des)
 	{
 		des.SetPixels(orig.GetPixels());
@@ -158,6 +166,67 @@ public class ImageProcess : MonoBehaviour {
 
 	}
 
+
+    private float[,] m_Adjustments = 
+            {{1, 9, 3, 11},
+            {13, 5, 15, 7},
+            {4, 12, 2, 10},
+            {16, 8, 14, 6}}; 
+    
+    private void OrderedDithering(Texture2D texture, float level)
+    {
+        float mult = 1f / 17f;
+        var adjustMatrix = (float[,])m_Adjustments.Clone();
+
+        int singleLengrh = adjustMatrix.GetLength(0);
+        // modify adjust matrix
+        for(int i = 0; i < singleLengrh; i++)
+        {
+            for (int j = 0; j < singleLengrh; j++)
+            {
+                adjustMatrix[i, j] = (adjustMatrix[i, j] - level) * mult;
+            }
+        }
+
+        int width = texture.width;
+        int height = texture.height;
+        Color[] pix = texture.GetPixels(0, 0, width, height);
+
+        int current = 0;
+        Color oldpixel = Color.white;
+        Color newpixel = Color.white;
+
+        for (int h = 0; h < height; h++)
+        {
+            for(int w = 0; w < width; w++)
+            {
+                current = h * width + w;
+                oldpixel = pix[current];
+
+                float coordX = w % singleLengrh;
+                float coordY = h % singleLengrh;
+
+                newpixel = oldpixel + (oldpixel * adjustMatrix[(int)coordY, (int)coordX]);
+
+//                newpixel.r = (newpixel.r > 0.5f) ? 1.0f : 0f; 
+//                newpixel.g = (newpixel.g > 0.5f) ? 1.0f : 0f;
+//                newpixel.b = (newpixel.b > 0.5f) ? 1.0f : 0f;
+                newpixel.r = oldpixel.r;
+                newpixel.g = oldpixel.g;
+                newpixel.b = oldpixel.b;
+//                newpixel.a = oldpixel.a;
+                newpixel.a =  (newpixel.a > 0.5f) ? 1.0f : 0f;
+
+
+                pix[current] = newpixel;
+            }
+        }
+
+
+        texture.SetPixels(pix);
+        texture.Apply();
+
+    }
 
 
 }
